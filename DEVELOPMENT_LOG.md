@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Photon Studio 0.1.47 activation (2026-10-10)
+
+Stock Photon Studio 0.1.47 rejects `sdk.config.get`, so the plugin never
+finished activation and the AI panel stayed empty. The plugin now treats a
+missing `config.get`/`config.set` as "use `settings.json`", a missing
+`ui.customDialog` as an in-panel Library overlay, and a missing
+`credentials.store` as a session that lasts only for this run. Device
+sign-in, remembered OAuth, separate Library files, and the editor-wide
+Library window still need Photon host work; see
+`docs/photon-host-changes.md`.
+
 ### Shorter Edit action hints (2026-10-07)
 
 Change and Replace now use concise labels that fit within the length of Add.

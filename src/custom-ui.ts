@@ -37,8 +37,13 @@ function bridge():HostBridge{
   if(!host)throw new Error('Photon Studio plugin bridge is unavailable.');
   return host;
 }
-function editorDialog(open:boolean):Promise<HostReply>{
-  return bridge().request('sdk.ui.customDialog',{open});
+function unsupported(error?:string):boolean{
+  return !!error&&/Unsupported Photon SDK capability/i.test(error);
+}
+async function editorDialog(params:{open?:boolean;ready?:boolean}):Promise<HostReply>{
+  const reply=await bridge().request('sdk.ui.customDialog',params);
+  if(reply?.error&&unsupported(reply.error))return {};
+  return reply;
 }
 function applyPhotonTheme(value:unknown):void{
   if(!value||typeof value!=='object')return;
@@ -104,20 +109,20 @@ export async function createCustomPanel(base:PhotonApi):Promise<CustomPanel>{
     if(id){const replacement=Array.from(root.querySelectorAll<HTMLInputElement|HTMLTextAreaElement>('[data-control]')).find(el=>el.dataset.control===id);replacement?.focus();if(position!==null&&replacement&&'setSelectionRange'in replacement)replacement.setSelectionRange(position,position);}
   },onEvent:callback=>{handler=callback;return {dispose(){if(handler===callback)handler=undefined;}};}}};
   const closeCollection=async()=>{
-    const reply=await editorDialog(false);
+    const reply=await editorDialog({open:false});
     if(reply?.error)throw new Error(reply.error);
     disposeCollection?.();disposeCollection=undefined;
     overlay.hidden=true;overlay.replaceChildren();root.inert=false;document.body.classList.remove('collection-modal');
   };
   return {api,async openCollection(kind,actions){
     try{
-      const reply=await editorDialog(true);
+      const reply=await editorDialog({open:true});
       if(reply?.error)throw new Error(reply.error);
       document.body.classList.add('collection-modal');
       disposeCollection=showCollection(kind,actions,closeCollection);
-      const ready=await bridge().request('sdk.ui.customDialog',{ready:true});
+      const ready=await editorDialog({ready:true});
       if(ready?.error)throw new Error(ready.error);
-    }catch(error){disposeCollection?.();disposeCollection=undefined;overlay.hidden=true;overlay.replaceChildren();root.inert=false;document.body.classList.remove('collection-modal');await editorDialog(false).catch(()=>{});throw error;}
+    }catch(error){disposeCollection?.();disposeCollection=undefined;overlay.hidden=true;overlay.replaceChildren();root.inert=false;document.body.classList.remove('collection-modal');await editorDialog({open:false}).catch(()=>{});throw error;}
   },closeCollection};
 }
 

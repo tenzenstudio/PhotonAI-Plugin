@@ -18,15 +18,16 @@ import {readPluginConfig,writePluginConfig} from './plugin-config';
 import type {CustomPanel} from './custom-ui';
 import {canConvertTemplate,convertTemplate} from './template-conversion';
 import {exportCollection as prepareCollectionExport,importCollection as prepareCollectionImport} from './library-transfer';
-interface Settings {provider:ProviderId;models:Partial<Record<ProviderId,string>>;customBase:string;customModel:string;customEdit:boolean;customSizes:string;customQualities:string;customMaxEdge:number;modelCache:Partial<Record<ProviderId,ModelCacheEntry>>;library:LibraryState;}
+interface Settings {provider:ProviderId;models:Partial<Record<ProviderId,string>>;customBase:string;customModel:string;customEdit:boolean;customSizes:string;customQualities:string;customMaxEdge:number;modelCache:Partial<Record<ProviderId,ModelCacheEntry>>;library:LibraryState;historyImages?:unknown;}
 interface Result {bytes:Uint8Array;image:ImagePixels;capture?:Capture;name:string;mode:Mode;editMethod?:'mask'|'prompt';target?:{documentId:string;revision:number};}
 export async function activate(api:PhotonApi,panel?:CustomPanel){
   const oldSettings=await api.settings.get<Partial<Settings>>();
   const storedLibrary=await readPluginConfig<unknown>('library');
   const storedHistoryImages=await readPluginConfig<unknown>('references');
   const hasStoredLibrary=!!storedLibrary&&typeof storedLibrary==='object'&&Array.isArray((storedLibrary as Partial<LibraryState>).templates)&&Array.isArray((storedLibrary as Partial<LibraryState>).prompts);
-  let settings:Settings={provider:'openai',models:{},customBase:'https://api.openai.com/v1',customModel:'',customEdit:true,customSizes:'1024x1024,1536x1024,1024x1536',customQualities:'',customMaxEdge:2048,modelCache:{},...oldSettings,library:cleanLibrary(hasStoredLibrary?storedLibrary:oldSettings.library)};
-  const historyImages=cleanHistoryImages(storedHistoryImages);
+  const {library:_ignoredLibrary,historyImages:settingsHistoryImages,...restSettings}=oldSettings;
+  let settings:Settings={provider:'openai',models:{},customBase:'https://api.openai.com/v1',customModel:'',customEdit:true,customSizes:'1024x1024,1536x1024,1024x1536',customQualities:'',customMaxEdge:2048,modelCache:{},...restSettings,library:cleanLibrary(hasStoredLibrary?storedLibrary:oldSettings.library)};
+  const historyImages=cleanHistoryImages(storedHistoryImages??settingsHistoryImages);
   let historyImagesDirty=compactHistoryImages(historyImages,settings.library);
   const seededTemplates=seedPremadeTemplates(settings.library);
   const seededEditPrompts=ensureEditPrompts(settings.library);
@@ -65,9 +66,11 @@ export async function activate(api:PhotonApi,panel?:CustomPanel){
     }
     if(bytes()>940_000||historyImageBytes(historyImages)>940_000)throw new PluginError('LIBRARY_FULL','The library is full. Remove saved cards or image references before adding more.');
     historyImagesDirty=compactHistoryImages(historyImages,settings.library)||historyImagesDirty;
-    if(historyImagesDirty){await writePluginConfig('references',historyImages as unknown as Record<string,unknown>);historyImagesDirty=false;}
-    await writePluginConfig('library',settings.library as unknown as Record<string,unknown>);
-    const {library:_library,...mainSettings}=settings;await api.settings.set(mainSettings as Record<string,unknown>);
+    const wroteRefs=!historyImagesDirty||await writePluginConfig('references',historyImages as unknown as Record<string,unknown>);
+    if(historyImagesDirty&&wroteRefs)historyImagesDirty=false;
+    const wroteLibrary=await writePluginConfig('library',settings.library as unknown as Record<string,unknown>);
+    const {library:_library,historyImages:_storedImages,...mainSettings}=settings;
+    await api.settings.set((wroteLibrary&&wroteRefs?mainSettings:{...mainSettings,library:settings.library,...wroteRefs?{}:{historyImages}}) as Record<string,unknown>);
   };
   const fieldControl=(field:TemplateField):Control=>{
     const id='templateField:'+field.name,value=templateValues[field.name];

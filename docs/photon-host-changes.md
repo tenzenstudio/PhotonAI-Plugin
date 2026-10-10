@@ -152,7 +152,13 @@ On 2026-10-05, the installed 0.1.42 `app.asar` contained `credentials.read` and 
 
 Ship these behaviors in Photon and the SDK: `form` bodies, an in-place dialog update, dialog actions for copy and open-external that do not close the dialog, unthrottled timers for a hidden native plugin runtime, an `authorization` field on network requests, and encrypted session store/read.
 
-Photon Studio 0.1.42 still needs all of them. Leave the sign-in control ids and the CSS class names as plugin details. A local test install may carry those edits until the product does.
+Photon Studio 0.1.42 and stock 0.1.47 still need all of them. Leave the sign-in control ids and the CSS class names as plugin details. A local test install may carry those edits until the product does.
+
+## Photon Studio 0.1.47
+
+The 0.1.47 updater replaces `resources/app.asar` with an unpatched archive. Stock 0.1.47 still throws `Unsupported Photon SDK capability` for `config.get`, `config.set`, `ui.customDialog`, `credentials.store`, `credentials.read`, `form` bodies, and a plugin-supplied `authorization` field. Custom `ui: "custom"` panels remain valid.
+
+On a fresh 0.1.47 install the plugin used to fail activation on `config.get` and never sent `sdk.ready`, so Photon reported that it did not finish activation and the AI panel stayed empty. The plugin now continues without those methods: Library metadata falls back to `settings.json`, Library/Templates open inside the docked panel, and an OAuth session is kept only in memory. The host work in this note is still required for device sign-in, remembered Codex/Grok sessions, separate 1 MB Library files, and an editor-owned Library modal.
 
 ## Library and Templates host work
 

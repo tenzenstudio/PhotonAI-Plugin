@@ -1,17 +1,28 @@
 interface HostReply<T>{value?:T;error?:string;}
 interface HostBridge{request(method:string,params:Record<string,unknown>):Promise<HostReply<unknown>>;}
 
-function bridge():HostBridge{
-  const host=(globalThis as typeof globalThis & {__photonPlugin?:HostBridge}).__photonPlugin;
-  if(!host)throw new Error('Photon Studio plugin bridge is unavailable.');
-  return host;
+function bridge():HostBridge|undefined{
+  return (globalThis as typeof globalThis & {__photonPlugin?:HostBridge}).__photonPlugin;
 }
 
-async function config<T>(method:'get'|'set',id:string,value?:unknown):Promise<T>{
-  const reply=await bridge().request('sdk.config.'+method,method==='get'?{id}:{id,value});
-  if(reply.error)throw new Error('Photon Studio needs per-plugin configuration file support: '+reply.error);
-  return reply.value as T;
+function unsupported(error?:string):boolean{
+  return !!error&&/Unsupported Photon SDK capability|plugin bridge is unavailable/i.test(error);
 }
 
-export const readPluginConfig=<T>(id:string)=>config<T>('get',id);
-export const writePluginConfig=(id:string,value:Record<string,unknown>)=>config<void>('set',id,value);
+export async function readPluginConfig<T>(id:string):Promise<T|undefined>{
+  const host=bridge();
+  if(!host)return undefined;
+  const reply=await host.request('sdk.config.get',{id});
+  if(!reply.error)return reply.value as T;
+  if(unsupported(reply.error))return undefined;
+  throw new Error('Photon Studio needs per-plugin configuration file support: '+reply.error);
+}
+
+export async function writePluginConfig(id:string,value:Record<string,unknown>):Promise<boolean>{
+  const host=bridge();
+  if(!host)return false;
+  const reply=await host.request('sdk.config.set',{id,value});
+  if(!reply.error)return true;
+  if(unsupported(reply.error))return false;
+  throw new Error('Photon Studio needs per-plugin configuration file support: '+reply.error);
+}
